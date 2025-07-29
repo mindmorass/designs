@@ -22,23 +22,33 @@ subgraph Pipeline
   subgraph App_Lane
     direction LR
     
-    %% App Tests
-    subgraph App_Tests
-      AT1[Lint App] --> AT2[App Unit Test]
-      AT1 --> AT3[App Integration Test]
-      AT1 --> AT4[App Security Test]
-      AT2 --> AT5[App Pass]
-      AT3 --> AT5
-      AT4 --> AT5
+    %% Pre-Build Tests (parallel with junction)
+    subgraph App_Tests_PreBuild
+      ATJ@{ shape: f-circ, label: "PreBuild Junction" }
+      ATJ --> AT1[Lint App]
+      ATJ --> AT2[App Unit Test]
+      ATJ --> AT3[App Security Test]
+      AT1 --> APB{App PreBuild Pass}
+      AT2 --> APB
+      AT3 --> APB
     end
     
-    %% App Build
+    %% Build (parallel with junction)
     subgraph App_Build
-      AT5 --> AB1{Container or Serverless}
-      AB1 -->|Container| AB2[App Container Build]
+      APB --> ABJ@{ shape: f-circ, label: "Build Junction" }
+      ABJ --> AB2[App Container Build]
       AB2 --> AB3[Vulnerability Scan Container]
-      AB1 -->|Serverless| AB4[Serverless Package Build]
+      ABJ --> AB4[Serverless Package Build]
       AB4 --> AB5[Vulnerability Scan Serverless]
+    end
+    
+    %% Post-Build Integration Tests (parallel with junction)
+    subgraph App_Tests_PostBuild
+      ITJ@{ shape: f-circ, label: "Integration Junction" }
+      AB3 --> ITJ
+      AB5 --> ITJ
+      ITJ --> IT1[App Integration Test]
+      IT1 --> ITP{Integration Pass}
     end
   end
   
@@ -51,7 +61,8 @@ subgraph Pipeline
       IB1[Lint Infra] --> IB2[Infra Build]
     end
     subgraph Infra_Tests
-      IB2 --> IT1[Infrastructure Security Tests]
+      IB2 --> IT2[Infrastructure Security Tests]
+      IT2 --> ISP{Security Pass}
     end
   end
   
@@ -62,9 +73,9 @@ subgraph Pipeline
     AR1[Container Repo]
     AR2[App Repo]
     AR3[Infra Repo]
-    AB3 --> AR1
-    AB5 --> AR2
-    IT1 --> AR3
+    ITP --> AR1
+    ITP --> AR2
+    ISP --> AR3
   end
   
   %% ====================
@@ -101,8 +112,6 @@ style Artifact_Repo fill:#fff9e6,stroke:#cccccc,stroke-width:1px
 style Tagging fill:#e6f9ff,stroke:#cccccc,stroke-width:1px
 style Deploy fill:#e6ffe6,stroke:#cccccc,stroke-width:1px
 
-%% ====================
-%% Click Links
-%% ====================
+
 
 ```
