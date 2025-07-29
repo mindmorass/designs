@@ -14,3 +14,7 @@ These sections adapt the generic pipeline model to specific languages and common
 * [Java](./java.md)
 * [Ruby](./ruby.md)
 * [Go](./go.md)
+
+## Infrastructure
+
+* [CDK](./infra/cdk.md)
