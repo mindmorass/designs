@@ -10,7 +10,7 @@ This section outlines the high level, language agnostic pipeline design.
 
 These sections adapt the generic pipeline model to specific languages and common tooling patterns.  
 
-* Node.js  
+* [Typescript/NodeJS](./typescript.md)
 * Java  
 * Ruby  
 * Go
