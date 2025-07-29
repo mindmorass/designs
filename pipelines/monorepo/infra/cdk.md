@@ -24,7 +24,7 @@ subgraph Pipeline
     
     %% Infra Build & Tests
     subgraph Infra_Build
-      IB1[Lint CDK Code] --> IB2[Synth CloudFormation Templates]
+      IB1[Lint CDK Code<br>- Python<br>- Java<br>- Go<br>- TypeScript] --> IB2[Synth CloudFormation Templates]
       IB2 --> SR[Store Synth Templates in Repo]
     end
     
@@ -68,5 +68,6 @@ style Infra_Lane fill:#e6f2ff,stroke:#cccccc,stroke-width:1px
 style Artifact_Repo fill:#fff9e6,stroke:#cccccc,stroke-width:1px
 style Tagging fill:#e6f9ff,stroke:#cccccc,stroke-width:1px
 style Deploy fill:#e6ffe6,stroke:#cccccc,stroke-width:1px
+
 
 ```
