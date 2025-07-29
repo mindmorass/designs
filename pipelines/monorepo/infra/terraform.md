@@ -24,7 +24,7 @@ subgraph Pipeline
     
     %% Infra Build & Tests
     subgraph Infra_Build
-      IB1[Lint Terraform Code<br>- terraform fmt<br>- tflint] --> IB2[Terraform Plan<br>(Generate execution plan)]
+      IB1[Lint Terraform Code<br>- terraform fmt<br>- tflint] --> IB2[Terraform Plan<br>]
       IB2 --> SR[Store Plan File in Repo]
     end
     
