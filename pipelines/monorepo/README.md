@@ -104,6 +104,6 @@ style Deploy fill:#e6ffe6,stroke:#cccccc,stroke-width:1px
 %% ====================
 %% Click Links
 %% ====================
-click App_Tests "./languages.md" "Languages"
+click App_Tests "https://github.com/mindmorass/designs/blob/main/pipelines/monorepo/languages.md" "Languages"
 
 ```
