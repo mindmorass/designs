@@ -1,0 +1,148 @@
+name: [Infra] Terraform Pipeline
+
+on:
+  pull_request:
+    paths:
+      - '**/*.tf'
+      - '.github/workflows/terraform.yml'
+  push:
+    branches:
+      - main
+
+env:
+  TF_VERSION: 1.6.6
+  TF_WORKING_DIR: ./terraform
+
+jobs:
+  lint:
+    name: Lint Terraform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform fmt
+        uses: dflook/terraform-fmt-check@v1
+
+      - name: TFLint
+        uses: terraform-linters/tflint-action@v1
+        with:
+          args: --recursive
+
+      - name: Terrascan
+        uses: tenable/terrascan-action@v1.9.0
+        with:
+          iac_type: terraform
+
+      - name: Infracost
+        uses: infracost/actions/setup@v2
+      - run: infracost breakdown --path=${{ env.TF_WORKING_DIR }}
+
+  plan:
+    name: Terraform Plan
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        uses: dflook/terraform-init@v1
+        with:
+          path: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Plan
+        uses: dflook/terraform-plan@v1
+        with:
+          path: ${{ env.TF_WORKING_DIR }}
+          plan_path: tfplan
+
+      - name: Upload Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
+
+  security:
+    name: Security Checks
+    needs: plan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+
+      - name: Conftest
+        uses: instrumenta/conftest-action@v1
+        with:
+          files: ${{ env.TF_WORKING_DIR }}
+
+      - name: Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: tfsec
+        uses: aquasecurity/tfsec-pr-commenter-action@v1.3.1
+        with:
+          working_directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: KICS
+        uses: Checkmarx/kics-github-action@v1.7
+        with:
+          path: ${{ env.TF_WORKING_DIR }}
+
+  tag:
+    name: Tag Branch
+    needs: security
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Tag
+        uses: mathieudutour/github-tag-action@v6.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: infra-
+
+  apply:
+    name: Terraform Apply
+    needs: tag
+    if: github.ref == 'refs/heads/main' && success()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+      - name: Terraform Apply
+        uses: dflook/terraform-apply@v1
+        with:
+          path: ${{ env.TF_WORKING_DIR }}
+          plan_path: tfplan
+          auto_approve: true
+
+  notify:
+    name: Notify Owners
+    needs: [lint, plan, security, apply]
+    runs-on: ubuntu-latest
+    if: failure() || success()
+    steps:
+      - name: Send Notification
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "Terraform pipeline completed for ${{ github.ref }} with status ${{ job.status }}"
+            }
+
