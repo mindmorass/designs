@@ -4,7 +4,6 @@ on:
   pull_request:
     paths:
       - '**/*.tf'
-      - '.github/workflows/infra_terraform.yml'
   push:
     branches:
       - main
@@ -13,104 +12,117 @@ env:
   TF_VERSION: 1.6.6
   TF_WORKING_DIR: ./terraform
 
+# =====================
+# LINT STAGE
+# =====================
 jobs:
-  lint:
-    name: Lint Terraform
+  lint_fmt:
     runs-on: ubuntu-latest
+    name: Terraform fmt
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+      - run: terraform fmt -check -recursive
 
-      - name: Terraform fmt
-        run: terraform fmt -check -recursive
+  lint_tflint:
+    runs-on: ubuntu-latest
+    name: TFLint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: terraform-linters/setup-tflint@v4
+      - run: tflint --recursive
 
-      - name: Install TFLint
-        uses: terraform-linters/setup-tflint@v4
-
-      - name: Run TFLint
-        run: tflint --recursive
-
-      - name: Terrascan
-        uses: tenable/terrascan-action@main
+  lint_terrascan:
+    runs-on: ubuntu-latest
+    name: Terrascan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tenable/terrascan-action@main
         with:
           iac_type: terraform
           iac_version: v14
           policy_type: aws
 
-      - name: Install Infracost
-        uses: infracost/actions/setup@v2
-
-      - name: Run Infracost
-        run: infracost breakdown --path=${{ env.TF_WORKING_DIR }}
-
-  plan:
-    name: Terraform Plan
-    needs: lint
+  lint_infracost:
     runs-on: ubuntu-latest
+    name: Infracost
     steps:
       - uses: actions/checkout@v4
+      - uses: infracost/actions/setup@v2
+      - run: infracost breakdown --path=${{ env.TF_WORKING_DIR }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+# =====================
+# PLAN STAGE
+# =====================
+  plan:
+    runs-on: ubuntu-latest
+    name: Terraform Plan
+    needs: [lint_fmt, lint_tflint, lint_terrascan, lint_infracost]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Terraform Init
-        run: terraform -chdir=${{ env.TF_WORKING_DIR }} init
-
-      - name: Terraform Plan
-        run: terraform -chdir=${{ env.TF_WORKING_DIR }} plan -out=tfplan
-
-      - name: Upload Plan
-        uses: actions/upload-artifact@v4
+      - run: terraform -chdir=${{ env.TF_WORKING_DIR }} init
+      - run: terraform -chdir=${{ env.TF_WORKING_DIR }} plan -out=tfplan
+      - uses: actions/upload-artifact@v4
         with:
           name: tfplan
           path: tfplan
 
-  security:
-    name: Security Checks
-    needs: plan
+# =====================
+# SECURITY STAGE
+# =====================
+  security_conftest:
     runs-on: ubuntu-latest
+    name: Conftest
+    needs: plan
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: tfplan
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Conftest
-        uses: instrumenta/conftest-action@v1
+      - uses: instrumenta/conftest-action@v1
         with:
           files: ${{ env.TF_WORKING_DIR }}
 
-      - name: Checkov
-        uses: bridgecrewio/checkov-action@master
+  security_checkov:
+    runs-on: ubuntu-latest
+    name: Checkov
+    needs: plan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bridgecrewio/checkov-action@master
         with:
           directory: ${{ env.TF_WORKING_DIR }}
 
-      - name: tfsec
-        uses: aquasecurity/tfsec-pr-commenter-action@v1.3.1
+  security_tfsec:
+    runs-on: ubuntu-latest
+    name: tfsec
+    needs: plan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/tfsec-pr-commenter-action@v1.3.1
         with:
           working_directory: ${{ env.TF_WORKING_DIR }}
 
-      - name: KICS
-        uses: Checkmarx/kics-github-action@v1.7
+  security_kics:
+    runs-on: ubuntu-latest
+    name: KICS
+    needs: plan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Checkmarx/kics-github-action@v1.7
         with:
           path: ${{ env.TF_WORKING_DIR }}
 
+# =====================
+# TAG STAGE
+# =====================
   tag:
-    name: Tag Branch
-    needs: security
-    if: success()
     runs-on: ubuntu-latest
+    name: Tag Branch
+    needs: [security_conftest, security_checkov, security_tfsec, security_kics]
+    if: success()
     steps:
       - uses: actions/checkout@v4
       - name: Create Tag
@@ -119,11 +131,14 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           tag_prefix: infra-
 
+# =====================
+# APPLY STAGE
+# =====================
   apply:
+    runs-on: ubuntu-latest
     name: Terraform Apply
     needs: tag
     if: github.ref == 'refs/heads/main' && success()
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -139,10 +154,13 @@ jobs:
           plan_path: tfplan
           auto_approve: true
 
+# =====================
+# NOTIFY STAGE
+# =====================
   notify:
-    name: Notify Owners
-    needs: [lint, plan, security, apply]
     runs-on: ubuntu-latest
+    name: Notify Owners
+    needs: [lint_fmt, lint_tflint, lint_terrascan, lint_infracost, plan, security_conftest, security_checkov, security_tfsec, security_kics, apply]
     if: failure() || success()
     steps:
       - name: Notify Slack
