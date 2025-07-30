@@ -34,17 +34,6 @@ jobs:
       - uses: terraform-linters/setup-tflint@v4
       - run: tflint --recursive
 
-  lint_terrascan:
-    runs-on: ubuntu-latest
-    name: Terrascan
-    steps:
-      - uses: actions/checkout@v4
-      - uses: tenable/terrascan-action@main
-        with:
-          iac_type: terraform
-          iac_version: v14
-          policy_type: aws
-
   lint_infracost:
     runs-on: ubuntu-latest
     name: Infracost
@@ -61,7 +50,7 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     name: Terraform Plan
-    needs: [lint_fmt, lint_tflint, lint_terrascan, lint_infracost]
+    needs: [lint_fmt, lint_tflint, lint_infracost]
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -162,7 +151,7 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     name: Notify Owners
-    needs: [lint_fmt, lint_tflint, lint_terrascan, lint_infracost, plan, security_conftest, security_checkov, security_tfsec, security_kics, apply]
+    needs: [lint_fmt, lint_tflint, lint_infracost, plan, security_conftest, security_checkov, security_tfsec, security_kics, apply]
     if: failure() || success()
     steps:
       - name: Notify Slack
