@@ -1,0 +1,136 @@
+stages:
+  - lint
+  - plan
+  - security
+  - tag
+  - apply
+  - notify
+
+variables:
+  TF_VERSION: "1.6.6"
+  TF_WORKING_DIR: "./terraform"
+
+# ====================
+# Lint Stage
+# ====================
+lint_tf_fmt:
+  stage: lint
+  image: hashicorp/terraform:${TF_VERSION}
+  script:
+    - terraform fmt -check -recursive
+  allow_failure: false
+
+lint_tflint:
+  stage: lint
+  image: golang:1.21
+  before_script:
+    - go install github.com/terraform-linters/tflint@latest
+    - export PATH=$PATH:/root/go/bin
+  script:
+    - tflint --recursive
+
+lint_terrascan:
+  stage: lint
+  image: tenable/terrascan:latest
+  script:
+    - terrascan scan -t aws -i terraform
+
+lint_infracost:
+  stage: lint
+  image: infracost/infracost:latest
+  script:
+    - infracost breakdown --path=${TF_WORKING_DIR}
+
+# ====================
+# Plan Stage
+# ====================
+terraform_plan:
+  stage: plan
+  image: hashicorp/terraform:${TF_VERSION}
+  dependencies:
+    - lint_tf_fmt
+    - lint_tflint
+    - lint_terrascan
+    - lint_infracost
+  script:
+    - terraform -chdir=${TF_WORKING_DIR} init
+    - terraform -chdir=${TF_WORKING_DIR} plan -out=tfplan
+  artifacts:
+    paths:
+      - ${TF_WORKING_DIR}/tfplan
+    expire_in: 1 day
+
+# ====================
+# Security Stage
+# ====================
+security_conftest:
+  stage: security
+  image: openpolicyagent/conftest:latest
+  dependencies:
+    - terraform_plan
+  script:
+    - conftest test ${TF_WORKING_DIR}
+
+security_checkov:
+  stage: security
+  image: bridgecrew/checkov:latest
+  dependencies:
+    - terraform_plan
+  script:
+    - checkov -d ${TF_WORKING_DIR}
+
+security_tfsec:
+  stage: security
+  image: aquasec/tfsec:latest
+  dependencies:
+    - terraform_plan
+  script:
+    - tfsec ${TF_WORKING_DIR}
+
+security_kics:
+  stage: security
+  image: checkmarx/kics:latest
+  dependencies:
+    - terraform_plan
+  script:
+    - kics scan -p ${TF_WORKING_DIR}
+
+# ====================
+# Tag Stage
+# ====================
+tag_branch:
+  stage: tag
+  image: alpine:latest
+  only:
+    - main
+  script:
+    - apk add git
+    - git config user.name "gitlab-ci"
+    - git config user.email "ci@example.com"
+    - git tag "infra-$(date +'%Y%m%d')"
+    - git push origin --tags
+
+# ====================
+# Apply Stage
+# ====================
+terraform_apply:
+  stage: apply
+  image: hashicorp/terraform:${TF_VERSION}
+  dependencies:
+    - terraform_plan
+  only:
+    - main
+  script:
+    - terraform -chdir=${TF_WORKING_DIR} apply -auto-approve ${TF_WORKING_DIR}/tfplan
+
+# ====================
+# Notify Stage
+# ====================
+notify_owners:
+  stage: notify
+  image: curlimages/curl:latest
+  script:
+    - echo "Notify owners..."
+    - 'curl -X POST -H "Content-type: application/json" --data "{\"text\":\"Terraform pipeline completed for $CI_COMMIT_REF_NAME\"}" $SLACK_WEBHOOK_URL'
+  when: always
+
