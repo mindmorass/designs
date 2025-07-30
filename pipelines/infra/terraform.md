@@ -92,80 +92,87 @@ flowchart TD
 %% ====================
 subgraph Dev_Commit
   DC1[Developer Commits Terraform Code]
-  DC2[PR Created / Updated]
+  DC2[PR Created or Updated]
   DC1 --> DC2
 end
 
 %% ====================
-%% Pipeline (Terraform Infra)
+%% Pipeline Terraform Infra
 %% ====================
 DC2 --> Pipeline
 subgraph Pipeline
 
   %% ====================
-  %% Infra Lane (Terraform)
+  %% Infra Lane Terraform
   %% ====================
   subgraph Infra_Lane
     direction LR
-    
-    %% Infra Build & Tests with Parallel Lint Tools
+
+    %% Infra Build and Tests
     subgraph Infra_Build
       direction TB
       LBJ@{ shape: f-circ, label: "Lint Junction" }
-      
+
       LBJ --> LTF[terraform fmt]
       LBJ --> LTL[TFLint]
       LBJ --> TRS[Terrascan]
       LBJ --> INC[Infracost]
-      
+
       LTF --> LMJ@{ shape: f-circ, label: "Lint Merge" }
       LTL --> LMJ
       TRS --> LMJ
       INC --> LMJ
-      
+
       LMJ --> IB2[Terraform Plan]
-      IB2 --> SR[Store Plan File]
+      IB2 --> BP{Pass}
+      BP -->|Yes| SR[Store Plan File]
     end
-    
-    %% Infra Security Tests with Parallel Security Tools
+
+    %% Infra Security Tests
     subgraph Infra_Tests
       direction TB
       SBJ@{ shape: f-circ, label: "Security Junction" }
-      
+
       SR --> SBJ
-      
-      %% Conftest as Parent
-      CON[Conftest]
-      CON --> CHK[Checkov]
-      CON --> TFS[tfsec]
-      CON --> PENG[policy‑engine]
-      CON --> KICS[KICS]
-      
-      SBJ --> CON
-      
+      SBJ --> CON[Conftest]
+      SBJ --> CHK[Checkov]
+      SBJ --> TFS[tfsec]
+      SBJ --> KICS[KICS]
+
       %% Merge all Security Checks
-      CHK --> SMJ@{ shape: f-circ, label: "Security Merge" }
+      CON --> SMJ@{ shape: f-circ, label: "Security Merge" }
+      CHK --> SMJ
       TFS --> SMJ
-      PENG --> SMJ
       KICS --> SMJ
-      
-      SMJ --> ISP{Security Pass}
+
+      SMJ --> ISP{Pass}
+      ISP -->|Yes| TG3[Tag Infra]
     end
+
   end
-  
+
   %% ====================
   %% Tagging
   %% ====================
   subgraph Tagging
-    ISP --> TG3[Tag Infra]
     TG3 --> TG4[Tag Branch]
   end
-  
+
   %% ====================
   %% Deploy
   %% ====================
   subgraph Deploy
     TG4 --> DP3[Terraform Apply]
+    DP3 --> DP_PASS{Pass}
+  end
+
+  %% ====================
+  %% Notifications 
+  %% ====================
+  subgraph Notify
+    DP_PASS -->|Yes & No| Notify_Owners
+    BP -->|No| Notify_Owners
+    ISP -->|No| Notify_Owners
   end
 
 end
@@ -178,25 +185,26 @@ style Pipeline fill:#f7f7f7,stroke:#cccccc,stroke-width:1px
 style Infra_Lane fill:#e6f2ff,stroke:#cccccc,stroke-width:1px
 style Tagging fill:#e6f9ff,stroke:#cccccc,stroke-width:1px
 style Deploy fill:#e6ffe6,stroke:#cccccc,stroke-width:1px
+style Notify fill:#fff0f0,stroke:#cccccc,stroke-width:1px
 
 classDef lint fill:#f0f8ff,stroke:#ccc,stroke-width:1px
 classDef security fill:#fff0f5,stroke:#ccc,stroke-width:1px
 
 class LTF,LTL,TRS,INC lint
-class CON,CHK,TFS,PENG,KICS security
+class CON,CHK,TFS,KICS security
 
 %% ====================
-%% Click Links
+%% Clickable Tool Links
 %% ====================
 click LTF "https://developer.hashicorp.com/terraform/cli/commands/fmt" "Terraform fmt Documentation"
 click LTL "https://github.com/terraform-linters/tflint" "TFLint Documentation"
 click TRS "https://github.com/tenable/terrascan" "Terrascan Documentation"
 click INC "https://github.com/infracost/infracost" "Infracost Documentation"
 
-click CON "https://www.openpolicyagent.org/docs/latest/conftest/" "Conftest Documentation"
+click CON "https://www.conftest.dev/" "Conftest Documentation"
 click CHK "https://www.checkov.io" "Checkov Documentation"
 click TFS "https://aquasecurity.github.io/tfsec/" "tfsec Documentation"
-click PENG "https://github.com/snyk/policy-engine" "policy‑engine Documentation"
 click KICS "https://github.com/Checkmarx/kics" "KICS Documentation"
+
 
 ```
