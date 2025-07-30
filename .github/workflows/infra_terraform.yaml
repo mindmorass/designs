@@ -48,6 +48,8 @@ jobs:
   lint_infracost:
     runs-on: ubuntu-latest
     name: Infracost
+    env:
+      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: infracost/actions/setup@v2
