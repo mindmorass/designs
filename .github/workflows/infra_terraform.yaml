@@ -1,4 +1,4 @@
-name: [Infra] Terraform Pipeline
+name: "[INFRA] Terraform Pipeline"
 
 on:
   pull_request:
@@ -38,9 +38,10 @@ jobs:
         with:
           iac_type: terraform
 
-      - name: Infracost
+      - name: Infracost Setup
         uses: infracost/actions/setup@v2
-      - run: infracost breakdown --path=${{ env.TF_WORKING_DIR }}
+      - name: Infracost Breakdown
+        run: infracost breakdown --path=${{ env.TF_WORKING_DIR }}
 
   plan:
     name: Terraform Plan
@@ -48,7 +49,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
@@ -75,7 +78,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+
+      - name: Download Plan
+        uses: actions/download-artifact@v4
         with:
           name: tfplan
 
@@ -106,6 +111,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Create Tag
         uses: mathieudutour/github-tag-action@v6.1
         with:
@@ -119,12 +125,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
-      - uses: actions/download-artifact@v4
+
+      - name: Download Plan
+        uses: actions/download-artifact@v4
         with:
           name: tfplan
+
       - name: Terraform Apply
         uses: dflook/terraform-apply@v1
         with:
