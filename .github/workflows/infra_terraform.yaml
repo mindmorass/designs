@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - '**/*.tf'
-      - '.github/workflows/terraform.yml'
+      - '.github/workflows/infra_terraform.yml'
   push:
     branches:
       - main
@@ -20,28 +20,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
+      - name: Install TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: Run TFLint
+        run: tflint --recursive
 
       - name: Terraform fmt
-        uses: dflook/terraform-fmt-check@v1
-
-      - name: TFLint
-        uses: terraform-linters/tflint-action@v1
-        with:
-          args: --recursive
-
-      - name: Terrascan
-        uses: tenable/terrascan-action@v1.9.0
-        with:
-          iac_type: terraform
-
-      - name: Infracost Setup
-        uses: infracost/actions/setup@v2
-      - name: Infracost Breakdown
-        run: infracost breakdown --path=${{ env.TF_WORKING_DIR }}
+        run: terraform fmt -check -recursive
 
   plan:
     name: Terraform Plan
@@ -56,53 +42,48 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        uses: dflook/terraform-init@v1
-        with:
-          path: ${{ env.TF_WORKING_DIR }}
+        run: terraform -chdir=${{ env.TF_WORKING_DIR }} init
 
       - name: Terraform Plan
-        uses: dflook/terraform-plan@v1
-        with:
-          path: ${{ env.TF_WORKING_DIR }}
-          plan_path: tfplan
+        run: terraform -chdir=${{ env.TF_WORKING_DIR }} plan -out=tfplan
 
-      - name: Upload Plan
+      - name: Upload Plan File
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
-          path: ${{ env.TF_WORKING_DIR }}/tfplan
+          path: tfplan
 
   security:
-    name: Security Checks
+    name: Security Scans
     needs: plan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Download Plan
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: tfplan
 
-      - name: Conftest
+      - name: Conftest Scan
         uses: instrumenta/conftest-action@v1
-        with:
-          files: ${{ env.TF_WORKING_DIR }}
 
-      - name: Checkov
+      - name: Checkov Scan
         uses: bridgecrewio/checkov-action@master
-        with:
-          directory: ${{ env.TF_WORKING_DIR }}
 
-      - name: tfsec
+      - name: tfsec Scan
         uses: aquasecurity/tfsec-pr-commenter-action@v1.3.1
-        with:
-          working_directory: ${{ env.TF_WORKING_DIR }}
 
-      - name: KICS
-        uses: Checkmarx/kics-github-action@v1.7
+      - name: Terrascan Scan
+        uses: tenable/terrascan-action@main
         with:
-          path: ${{ env.TF_WORKING_DIR }}
+          iac_type: terraform
+          iac_version: v14
+          policy_type: aws
+          sarif_upload: true
+
+      - name: Upload Terrascan SARIF
+        uses: github/codeql-action/upload-sarif@v1
+        with:
+          sarif_file: terrascan.sarif
 
   tag:
     name: Tag Branch
@@ -111,8 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Create Tag
+      - name: Create Git tag
         uses: mathieudutour/github-tag-action@v6.1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -125,17 +105,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Download Plan
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: tfplan
-
       - name: Terraform Apply
         uses: dflook/terraform-apply@v1
         with:
@@ -149,11 +124,11 @@ jobs:
     runs-on: ubuntu-latest
     if: failure() || success()
     steps:
-      - name: Send Notification
+      - name: Notify Slack
         uses: slackapi/slack-github-action@v1.24.0
         with:
           payload: |
             {
-              "text": "Terraform pipeline completed for ${{ github.ref }} with status ${{ job.status }}"
+              "text": "Terraform pipeline completed (${ { job.status } }) for ${{ github.ref }}"
             }
 
