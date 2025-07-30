@@ -1,7 +1,3 @@
-provider "aws" {
-  region = "us-east-1"
-}
-
 locals {
   cluster_name = "demo-eks"
   domain_name  = "example.com" # Update this to your Route53 domain
