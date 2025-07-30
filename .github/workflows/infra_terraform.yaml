@@ -20,14 +20,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
       - name: Install TFLint
         uses: terraform-linters/setup-tflint@v4
 
       - name: Run TFLint
         run: tflint --recursive
 
-      - name: Terraform fmt
-        run: terraform fmt -check -recursive
+      - name: Terrascan
+        uses: tenable/terrascan-action@main
+        with:
+          iac_type: terraform
+          iac_version: v14
+          policy_type: aws
+
+      - name: Install Infracost
+        uses: infracost/actions/setup@v2
+
+      - name: Run Infracost
+        run: infracost breakdown --path=${{ env.TF_WORKING_DIR }}
 
   plan:
     name: Terraform Plan
@@ -47,14 +65,14 @@ jobs:
       - name: Terraform Plan
         run: terraform -chdir=${{ env.TF_WORKING_DIR }} plan -out=tfplan
 
-      - name: Upload Plan File
+      - name: Upload Plan
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
           path: tfplan
 
   security:
-    name: Security Scans
+    name: Security Checks
     needs: plan
     runs-on: ubuntu-latest
     steps:
@@ -63,27 +81,30 @@ jobs:
         with:
           name: tfplan
 
-      - name: Conftest Scan
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Conftest
         uses: instrumenta/conftest-action@v1
+        with:
+          files: ${{ env.TF_WORKING_DIR }}
 
-      - name: Checkov Scan
+      - name: Checkov
         uses: bridgecrewio/checkov-action@master
+        with:
+          directory: ${{ env.TF_WORKING_DIR }}
 
-      - name: tfsec Scan
+      - name: tfsec
         uses: aquasecurity/tfsec-pr-commenter-action@v1.3.1
-
-      - name: Terrascan Scan
-        uses: tenable/terrascan-action@main
         with:
-          iac_type: terraform
-          iac_version: v14
-          policy_type: aws
-          sarif_upload: true
+          working_directory: ${{ env.TF_WORKING_DIR }}
 
-      - name: Upload Terrascan SARIF
-        uses: github/codeql-action/upload-sarif@v1
+      - name: KICS
+        uses: Checkmarx/kics-github-action@v1.7
         with:
-          sarif_file: terrascan.sarif
+          path: ${{ env.TF_WORKING_DIR }}
 
   tag:
     name: Tag Branch
@@ -92,7 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Create Git tag
+      - name: Create Tag
         uses: mathieudutour/github-tag-action@v6.1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -129,6 +150,6 @@ jobs:
         with:
           payload: |
             {
-              "text": "Terraform pipeline completed (${ { job.status } }) for ${{ github.ref }}"
+              "text": "Terraform pipeline completed for ${{ github.ref }} with status ${{ job.status }}"
             }
 
