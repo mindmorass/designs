@@ -37,6 +37,10 @@ jobs:
   lint_infracost:
     runs-on: ubuntu-latest
     name: Infracost
+    with:
+      version: v0.10.42
+      currency: USD
+      github-token: ${{ secrets.GITHUB_TOKEN }}
     env:
       INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
     steps:
