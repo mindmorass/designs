@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Infracost
     env:
-      TF_WORKING_DIR: {{ env.TF_WORKING_DIR }}
+      TF_WORKING_DIR: ${{ env.TF_WORKING_DIR }}
       INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
     steps:
       - uses: actions/checkout@v4
