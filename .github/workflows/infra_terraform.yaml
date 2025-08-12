@@ -37,30 +37,18 @@ jobs:
   lint_infracost:
     runs-on: ubuntu-latest
     name: Infracost
-    with:lint_infracost:
-  runs-on: ubuntu-latest
-  name: Infracost
-  env:
-    TF_WORKING_DIR: pipelines/infra/terraform/
-    INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
-  steps:
-    - uses: actions/checkout@v4
-
-    - uses: infracost/actions/setup@v2
-      with:
-        version: v0.10.42
-        currency: USD
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-
-    - run: infracost breakdown --path=${{ env.TF_WORKING_DIR }}
-      version: v0.10.42
-      currency: USD
-      github-token: ${{ secrets.GITHUB_TOKEN }}
     env:
+      TF_WORKING_DIR: "pipelines/infra/terraform/"
       INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+  
       - uses: infracost/actions/setup@v2
+        with:
+          version: v0.10.42
+          currency: USD
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+  
       - run: infracost breakdown --path=${{ env.TF_WORKING_DIR }}
 
 
