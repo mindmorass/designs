@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Infracost
     env:
-      TF_WORKING_DIR: "pipelines/infra/terraform/"
+      TF_WORKING_DIR: {{ env.TF_WORKING_DIR }}
       INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
     steps:
       - uses: actions/checkout@v4
@@ -98,6 +98,8 @@ jobs:
     runs-on: ubuntu-latest
     name: tfsec
     needs: plan
+    env:
+      INPUT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: aquasecurity/tfsec-pr-commenter-action@v1.3.1
@@ -110,7 +112,7 @@ jobs:
     needs: plan
     steps:
       - uses: actions/checkout@v4
-      - uses: Checkmarx/kics-github-action@v1.7
+      - uses: Checkmarx/kics-github-action@v2.1.12
         with:
           path: ${{ env.TF_WORKING_DIR }}
 
