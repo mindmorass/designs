@@ -80,7 +80,7 @@ jobs:
     needs: plan
     steps:
       - uses: actions/checkout@v4
-      - uses: instrumenta/conftest-action@v1
+      - uses: instrumenta/conftest-action@v0.4.0
         with:
           files: ${{ env.TF_WORKING_DIR }}
 
