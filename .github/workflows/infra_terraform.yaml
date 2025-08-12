@@ -34,11 +34,12 @@ jobs:
       - uses: terraform-linters/setup-tflint@v4
       - run: tflint --recursive
 
+
   lint_infracost:
     runs-on: ubuntu-latest
     name: Infracost
     env:
-      TF_WORKING_DIR: ${{ env.TF_WORKING_DIR }}
+      TF_WORKING_DIR: "pipelines/infra/terraform/"
       INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
     steps:
       - uses: actions/checkout@v4
@@ -50,6 +51,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
   
       - run: infracost breakdown --path=${{ env.TF_WORKING_DIR }}
+
 
 
 # =====================
