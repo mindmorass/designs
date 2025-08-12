@@ -101,11 +101,13 @@ jobs:
     name: tfsec
     needs: plan
     env:
-      INPUT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TF_WORKING_DIR: pipelines/infra/terragrunt
     steps:
       - uses: actions/checkout@v4
+  
       - uses: aquasecurity/tfsec-pr-commenter-action@v1.3.1
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           working_directory: ${{ env.TF_WORKING_DIR }}
 
   security_kics:
